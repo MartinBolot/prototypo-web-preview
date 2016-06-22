@@ -2,7 +2,7 @@
 * Handle request comming from popup window
 * data sent via "sendRequest" method in popup.js
 */
-chrome.extension.onRequest.addListener(function(request, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 	switch (request.action) {
 		// start of selection process
 		case "start_selection":

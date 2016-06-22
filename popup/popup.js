@@ -1,50 +1,55 @@
 var previouslySelectedElements = [];
 var previouslySelectedFont = '';
 
+window.onerror = function(e) {
+	console.log(e);
+}
+
 // on popup load
 window.addEventListener('load', function() {
 	// check for Prototypo error
-	chrome.tabs.getSelected(null, function(tab) {
-		chrome.tabs.sendRequest(
-			tab.id,
-			{
-				action: 'get_error'
-			},
-			// response function containing data sent by content script
-			function(error) {
-				if (error) {
-					var prototypoError = new PrototypoError(error);
-					while (document.body.firstChild) {
-						document.body.removeChild(document.body.firstChild);
+	chrome.tabs.query({ active: true }, function(tabs) {
+		if (tabs.length > 0) {
+			chrome.tabs.sendMessage(
+				tabs[0].id,
+				{
+					action: 'get_error'
+				},
+				null,
+				// response function containing data sent by content script
+				function(error) {
+					if (error) {
+						var prototypoError = new PrototypoError(error);
+						while (document.body.firstChild) {
+							document.body.removeChild(document.body.firstChild);
+						}
+						document.body.appendChild(prototypoError.el);
 					}
-					document.body.appendChild(prototypoError.el);
 				}
-			}
-		);
-	});
-	// retrieve fonts loaded by content script
-	chrome.tabs.getSelected(null, function(tab) {
-		chrome.tabs.sendRequest(
-			tab.id,
-			{
-				action: 'get_libraries'
-			},
-			// response function containing data sent by content script
-			function(fonts) {
-				if (fonts) {
-					var prototypoButton = new PrototypoMagic(fonts.values);
-					document.body.appendChild(prototypoButton.el);
-					chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-						prototypoButton.container.classList.toggle('hidden');
-						prototypoButton.active = !prototypoButton.active;
-						sendResponse({
-							isActive: prototypoButton.active,
-							iconState: prototypoButton.active ? '-hover-active' : ''
-						});
-					}.bind(this));
+			);
+			chrome.tabs.sendMessage(
+				tabs[0].id,
+				{
+					action: 'get_libraries'
+				},
+				null,
+				// response function containing data sent by content script
+				function(fonts) {
+					if (fonts) {
+						var prototypoButton = new PrototypoMagic(fonts.values);
+						document.body.appendChild(prototypoButton.el);
+						chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+							prototypoButton.container.classList.toggle('hidden');
+							prototypoButton.active = !prototypoButton.active;
+							sendResponse({
+								isActive: prototypoButton.active,
+								iconState: prototypoButton.active ? '-hover-active' : ''
+							});
+						}.bind(this));
+					}
 				}
-			}
-		);
+			);
+		}
 	});
 
 	// retrieve previously selected element
@@ -64,7 +69,7 @@ window.addEventListener('load', function() {
 			}
 	});
 
-	updateBadgeCount();
+	// updateBadgeCount();
 });
 
 /**
@@ -313,7 +318,7 @@ var FontSelect = function(fonts) {
 		font.variants.forEach(function(variant) {
 			var variantOption = document.createElement('option');
 			variantOption.value = variant.db;
-			variantOption.label = font.name + ' ' + variant.name;
+			variantOption.innerText = font.name + ' ' + variant.name;
 
 			this.el.appendChild(variantOption);
 
@@ -347,14 +352,15 @@ var PrototypoError = function(message) {
 */
 function sendMessageToContent(action, message) {
 	if (typeof action === 'string') {
-		chrome.tabs.getSelected(null, function(tab) {
+		chrome.tabs.query({ active: true }, function(tabs) {
 			// send a request to the content script
-			chrome.tabs.sendRequest(
-				tab.id,
+			chrome.tabs.sendMessage(
+				tabs[0].id,
 				{
 					action: action,
 					message: message
 				},
+				null,
 				function(response) {
 					console.log(response);
 				}
@@ -441,11 +447,13 @@ function updateBadgeCount() {
 	chrome.storage.local.get('selectedElements', function(data) {
 		if (data) {
 			if (data.selectedElements) {
-				chrome.tabs.getSelected(null, function(tab) {
-					if (data.selectedElements.length > 0) {
-						chrome.browserAction.setBadgeText({ text: (data.selectedElements.length).toString(), tabId: tab.id });
-					} else {
-						chrome.browserAction.setBadgeText({ text: '', tabId: tab.id });
+				chrome.tabs.query({ active: true }, function(tabs) {
+					if (tabs.length > 0) {
+						if (data.selectedElements.length > 0) {
+							chrome.browserAction.setBadgeText({ text: (data.selectedElements.length).toString(), tabId: tabs[0].id });
+						} else {
+							chrome.browserAction.setBadgeText({ text: '', tabId: tabs[0].id });
+						}
 					}
 				});
 			}

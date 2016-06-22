@@ -13,16 +13,12 @@ chrome.storage.local.clear();
 
 // setting up the iframe containing protypo app
 var extensionOrigin = 'chrome-extension://' + chrome.runtime.id;
-if (!location.ancestorOrigins.contains(extensionOrigin)) {
-
-	var iframe = document.createElement('iframe');
-	// Must be declared at web_accessible_resources in manifest.json
-	iframe.src = iframeDomain + 'iframe.html';
-
-	// Some styles for a fancy sidebar
-	iframe.style.cssText = 'position:fixed;top:0;left:0;display:block;' +
-	'width:0px;height:0px;border:none;';
-	document.body.appendChild(iframe);
+if(location.ancestorOrigins) {
+	if (!location.ancestorOrigins.contains(extensionOrigin)) {
+		setIframe();
+	}
+} else {
+	setIframe();
 }
 
 //Here we send a message to the iframe to close the worker port
@@ -31,9 +27,10 @@ window.addEventListener('unload', function() {
 });
 // on element selection start
 window.addEventListener('selection_start', function(e) {
+	console.log('selection_start');
 	// here we store the font that was selected in the popup
 	selectedFont = e.detail.message.font;
-	storeSelectedFont(selectedFont);
+	sendStoreSelectedFontMessage(selectedFont);
 
 	if (e.detail.message.selection) {
 		Array.prototype.forEach.call(document.querySelectorAll('*:not([class*="prototypo-"])'), function(el) {
@@ -66,7 +63,7 @@ window.addEventListener('apply_style', function(e) {
 	selectedFont = e.detail.message.selectedFont;
 
 	// store relative data
-	storeSelectedFont(selectedFont);
+	sendStoreSelectedFontMessage(selectedFont);
 
 	// apply style to element
 	applyStyleToEl(e.detail.message.selector, selectedFont);
@@ -197,7 +194,7 @@ function chooseEl(e) {
 			}
 		});
 
-		storeElement(selector, selectedFont);
+		sendStoreElementMessage(selector, selectedFont);
 
 		Array.prototype.forEach.call(document.querySelectorAll('*:not([class*="prototypo-"])'), function(el) {
 			el.removeEventListener('mouseenter', highlightEl);
@@ -298,42 +295,18 @@ function removeStyleTags(selector) {
 /**
 *	Stores the selected element in chrome storage
 * @param {string} selector - concerned selector stored as a string
+* @param {string} font - concerned font stored as a string
 */
-
-function storeElement(selector, font) {
-	var isStored = false;
-	chrome.storage.local.get('selectedElements', function(data) {
-		if (data) {
-			if (data.selectedElements) {
-				// look up the array to see if selector is already in
-				data.selectedElements.forEach(function(element) {
-					if (element) {
-						// if the selector was already in the array
-						if(element.selector === selector) {
-							isStored = true;
-							element.font = font;
-						}
-					}
-				});
-				// if the selector was not present, add it
-				if (!isStored) {
-					data.selectedElements.push({ selector: selector, font: font });
-				}
-				chrome.storage.local.set({ selectedElements: data.selectedElements });
-			} else {
-				chrome.storage.local.set({ selectedElements: [{ selector: selector, font: font }] });
-			}
-		}
-		sendMessageToBackground("update_badge_count");
-	});
+function sendStoreElementMessage(selector, font) {
+	sendMessageToBackground("store_element", {selector: selector, font: font});
 }
 
 /**
 *	Stores the selected font in chrome storage
 * @param {string} selectedFont - concerned font stored as a string
 */
-function storeSelectedFont(selectedFont) {
-	chrome.storage.local.set({selectedFont: selectedFont});
+function sendStoreSelectedFontMessage(selectedFont) {
+	sendMessageToBackground("store_selected_font", {selectedFont: selectedFont});
 }
 
 /**
@@ -353,4 +326,17 @@ function sendMessageToBackground(action, message) {
 	} else {
 		throw new Error('sendMessageToBackground - action (first parameter) must be of type string');
 	}
+}
+
+/**
+* Sets the iframe
+*/
+function setIframe() {
+	iframe = document.createElement('iframe');
+	// Must be declared at web_accessible_resources in manifest.json
+	iframe.src = iframeDomain + 'iframe.html';
+	// Some styles for a fancy sidebar
+	iframe.style.cssText = 'position:fixed;top:0;left:0;display:block;' +
+	'width:0px;height:0px;border:none;';
+	document.body.appendChild(iframe);
 }
